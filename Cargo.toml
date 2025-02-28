@@ -1,5 +1,5 @@
 [package]
-name = "eason"
+name = "echoes"
 version = "0.1.0"
 edition = "2024"
 
@@ -14,5 +14,5 @@ tokio-rustls = "0.26.1"
 rustls = "0.23.23"
 rustls-native-certs = "0.8.1"
 log = "0.4"
-fern = {version = "0.7.1", features = ["reopen-1", "date-based", "colored"] }
+fern = { version = "0.7.1", features = ["reopen-1", "date-based", "colored"] }
 chrono = "0.4"
