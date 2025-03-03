@@ -37,24 +37,35 @@ pub(crate) mod tls {
 
 pub(crate) mod resp {
     use bytes::Bytes;
-    use http::Response;
+    use http::{HeaderValue, Response};
     use http_body_util::combinators::BoxBody;
     use http_body_util::{BodyExt, Empty, Full};
     use hyper::Error;
     use log::error;
+    use serde::{Deserialize, Serialize};
 
     #[inline]
     pub(crate) fn forbidden() -> Response<BoxBody<Bytes, Error>> {
         error!("missing header(x-sc)");
-        let mut resp = Response::new(full("请提供服务编码"));
+        let mut resp = Response::new(full(
+            R::error("missing header(x-sc)", "缺少服务编码").serialize(),
+        ));
+        resp.headers_mut().insert(
+            "content-type",
+            HeaderValue::from_str("application/json").unwrap(),
+        );
         *resp.status_mut() = http::StatusCode::BAD_REQUEST;
         resp
     }
 
     #[inline]
-    pub(crate) fn error(err: String) -> Response<BoxBody<Bytes, Error>> {
+    pub(crate) fn error(err: &str) -> Response<BoxBody<Bytes, Error>> {
         error!("error on: {}", err);
-        let mut resp = Response::new(full(err));
+        let mut resp = Response::new(full(R::err(err).serialize()));
+        resp.headers_mut().insert(
+            "content-type",
+            HeaderValue::from_str("application/json").unwrap(),
+        );
         *resp.status_mut() = http::StatusCode::INTERNAL_SERVER_ERROR;
         resp
     }
@@ -71,5 +82,64 @@ pub(crate) mod resp {
         Full::new(chunk.into())
             .map_err(|never| match never {})
             .boxed()
+    }
+
+    #[derive(Serialize, Deserialize, Debug)]
+    pub(crate) struct R {
+        pub(crate) success: bool,
+        pub(crate) error: Option<String>,
+        pub(crate) error_description: Option<String>,
+    }
+
+    impl R {
+        #[inline]
+        pub(crate) fn new(
+            success: bool,
+            error: Option<String>,
+            error_description: Option<String>,
+        ) -> Self {
+            R {
+                success,
+                error,
+                error_description,
+            }
+        }
+
+        #[inline]
+        pub fn ok() -> Self {
+            R {
+                success: true,
+                error: None,
+                error_description: None,
+            }
+        }
+
+        #[inline]
+        pub fn err(err: &str) -> Self {
+            R {
+                success: false,
+                error: Some(String::from(err)),
+                error_description: Some(String::from(err)),
+            }
+        }
+
+        #[inline]
+        pub fn error(err: &str, desc: &str) -> Self {
+            R {
+                success: false,
+                error: Some(String::from(err)),
+                error_description: Some(String::from(desc)),
+            }
+        }
+
+        pub fn serialize(self) -> String {
+            serde_json::to_string(&self).map_or_else(
+                |_| {
+                    error!("failed to serialize frame");
+                    String::from("")
+                },
+                |v| v,
+            )
+        }
     }
 }

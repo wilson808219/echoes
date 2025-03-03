@@ -58,7 +58,7 @@ async fn proxy(
             Ok(Response::new(empty()))
         } else {
             error!("CONNECT host is not socket addr: {:?}", request.uri());
-            Ok(error(format!(
+            Ok(error(&format!(
                 "CONNECT must be to a socket address: {}",
                 request.uri()
             )))
@@ -70,7 +70,7 @@ async fn proxy(
                 let host = format!("{}.hsse.sudti.cn", sc);
                 info!("try forwarding to: {}", host);
                 let connector = connector().await;
-                match TcpStream::connect((host.clone(), 443)).await {
+                match TcpStream::connect((host.clone(), 20002)).await {
                     Ok(stream) => match ServerName::try_from(host.clone()) {
                         Ok(servername) => match connector.connect(servername, stream).await {
                             Ok(stream) => {
@@ -90,11 +90,11 @@ async fn proxy(
                                 info!("forwarded to: {}, status: {}", host, resp.status());
                                 Ok(resp.map(|b| b.boxed()))
                             }
-                            Err(err) => Ok(error(format!("TLS handshake failed: {}", err))),
+                            Err(err) => Ok(error(&format!("TLS handshake failed: {}", err))),
                         },
-                        Err(err) => Ok(error(format!("unknown host: {}", err))),
+                        Err(err) => Ok(error(&format!("unknown host: {}", err))),
                     },
-                    Err(err) => Ok(error(format!("access failed: {}", err))),
+                    Err(err) => Ok(error(&format!("access failed: {}", err))),
                 }
             } else {
                 Ok(forbidden())

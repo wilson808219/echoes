@@ -16,3 +16,5 @@ rustls-native-certs = "0.8.1"
 log = "0.4"
 fern = { version = "0.7.1", features = ["reopen-1", "date-based", "colored"] }
 chrono = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = {version = "1"}

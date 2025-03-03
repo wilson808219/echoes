@@ -7,7 +7,7 @@ pub async fn init() -> Result<(), fern::InitError> {
     #[cfg(target_os = "linux")]
     let path = Path::new("/var/log/ehs/exchanger/");
     #[cfg(target_os = "macos")]
-    let path = Path::new("/Users/wilson/Downloads/logs/ehs/exchanger/");
+    let path = Path::new("/Users/wilson/Downloads/logs/ehs/echoes/");
 
     if !path.exists() {
         std::fs::create_dir_all(path)?;
@@ -32,19 +32,23 @@ pub async fn init() -> Result<(), fern::InitError> {
 
     let info = fern::Dispatch::new()
         .format(formatter)
-        .level(LevelFilter::Info)
+        .filter(|x| {
+            x.level() >= LevelFilter::Info
+                && x.level() != LevelFilter::Warn
+                && x.level() != LevelFilter::Error
+        })
         .chain(std::io::stdout())
         .chain(fern::DateBased::new(path.join("info"), "@%Y-%m-%d.log"));
 
     let error = fern::Dispatch::new()
         .format(formatter)
-        .level(LevelFilter::Error)
+        .filter(|x| x.level() == LevelFilter::Error)
         .chain(std::io::stdout())
         .chain(fern::DateBased::new(path.join("error"), "@%Y-%m-%d.log"));
 
     let warn = fern::Dispatch::new()
         .format(formatter)
-        .level(LevelFilter::Warn)
+        .filter(|x| x.level() == LevelFilter::Warn)
         .chain(std::io::stdout())
         .chain(fern::DateBased::new(path.join("warning"), "@%Y-%m-%d.log"));
 
