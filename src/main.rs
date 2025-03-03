@@ -70,7 +70,7 @@ async fn proxy(
                 let host = format!("{}.hsse.sudti.cn", sc);
                 info!("try forwarding to: {}", host);
                 let connector = connector().await;
-                match TcpStream::connect((host.clone(), 20002)).await {
+                match TcpStream::connect((host.clone(), 443)).await {
                     Ok(stream) => match ServerName::try_from(host.clone()) {
                         Ok(servername) => match connector.connect(servername, stream).await {
                             Ok(stream) => {
