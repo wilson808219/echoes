@@ -1,42 +1,27 @@
 use crate::support::factories::header;
 use crate::support::io::IO;
+use crate::support::resp::{empty, error, forbidden};
+use crate::support::tls::connector;
 use bytes::Bytes;
-use http_body_util::{BodyExt, Empty, Full, combinators::BoxBody};
+use http_body_util::{BodyExt, combinators::BoxBody};
 use hyper::client::conn::http1::Builder;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::upgrade::Upgraded;
 use hyper::{Error, Method, Request, Response};
 use log::{debug, error, info};
-use rustls::ClientConfig;
 use rustls::pki_types::ServerName;
 use std::net::SocketAddr;
-use std::sync::{Arc, OnceLock};
-use tokio::io::AsyncWriteExt;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::spawn;
-use tokio_rustls::TlsConnector;
 
 mod support;
-
-static CONNECTOR: OnceLock<TlsConnector> = OnceLock::new();
-
-fn connector() -> &'static TlsConnector {
-    CONNECTOR.get_or_init(|| {
-        TlsConnector::from(Arc::new(
-            ClientConfig::builder()
-                .with_root_certificates(cert())
-                .with_no_client_auth(),
-        ))
-    })
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     support::logger::init().await?;
     let addr = SocketAddr::from(([0, 0, 0, 0], 8000));
     let listener = TcpListener::bind(addr).await?;
-    info!("forwarding service listening on (http://{})", addr);
+    info!("forwarding service listening on (https://{})", addr);
 
     loop {
         let (stream, _) = listener.accept().await?;
@@ -73,9 +58,10 @@ async fn proxy(
             Ok(Response::new(empty()))
         } else {
             error!("CONNECT host is not socket addr: {:?}", request.uri());
-            let mut resp = Response::new(full("CONNECT must be to a socket address"));
-            *resp.status_mut() = http::StatusCode::BAD_REQUEST;
-            Ok(resp)
+            Ok(error(format!(
+                "CONNECT must be to a socket address: {}",
+                request.uri()
+            )))
         }
     } else {
         let headers = request.headers();
@@ -83,7 +69,7 @@ async fn proxy(
             if let Ok(sc) = sc.to_str() {
                 let host = format!("{}.hsse.sudti.cn", sc);
                 info!("try forwarding to: {}", host);
-                let connector = connector();
+                let connector = connector().await;
                 match TcpStream::connect((host.clone(), 443)).await {
                     Ok(stream) => match ServerName::try_from(host.clone()) {
                         Ok(servername) => match connector.connect(servername, stream).await {
@@ -119,34 +105,8 @@ async fn proxy(
     }
 }
 
-fn forbidden() -> Response<BoxBody<Bytes, Error>> {
-    error!("missing header(x-sc)");
-    let mut resp = Response::new(full("请提供服务编码"));
-    *resp.status_mut() = http::StatusCode::BAD_REQUEST;
-    resp
-}
-
-fn error(err: String) -> Response<BoxBody<Bytes, Error>> {
-    error!("error on: {}", err);
-    let mut resp = Response::new(full(err));
-    *resp.status_mut() = http::StatusCode::INTERNAL_SERVER_ERROR;
-    resp
-}
-
 fn host(uri: &http::Uri) -> Option<String> {
     uri.authority().map(|auth| auth.to_string())
-}
-
-fn empty() -> BoxBody<Bytes, Error> {
-    Empty::<Bytes>::new()
-        .map_err(|never| match never {})
-        .boxed()
-}
-
-fn full<T: Into<Bytes>>(chunk: T) -> BoxBody<Bytes, Error> {
-    Full::new(chunk.into())
-        .map_err(|never| match never {})
-        .boxed()
 }
 
 async fn tunnel(upgraded: Upgraded, addr: String) -> std::io::Result<()> {
@@ -158,16 +118,4 @@ async fn tunnel(upgraded: Upgraded, addr: String) -> std::io::Result<()> {
         client, server
     );
     Ok(())
-}
-
-fn cert() -> rustls::RootCertStore {
-    let mut roots = rustls::RootCertStore::empty();
-    roots.add_parsable_certificates(
-        rustls_native_certs::load_native_certs()
-            .expect("could not load platform certs")
-            .into_iter()
-            .map(|cert| cert.into())
-            .collect::<Vec<_>>(),
-    );
-    roots
 }
