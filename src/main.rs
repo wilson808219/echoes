@@ -67,6 +67,9 @@ async fn proxy(
         let headers = request.headers();
         if let Some(sc) = headers.get("x-sc") {
             if let Ok(sc) = sc.to_str() {
+                if sc.trim().is_empty() {
+                    return Ok(forbidden());
+                }
                 let host = format!("{}.hsse.sudti.cn", sc);
                 info!("try forwarding to: {}", host);
                 let connector = connector().await;
