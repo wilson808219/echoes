@@ -46,15 +46,32 @@ pub(crate) mod resp {
 
     #[inline]
     pub(crate) fn forbidden() -> Response<BoxBody<Bytes, Error>> {
-        error!("missing header(x-sc)");
+        error!("missing header(x-sc) or sc value is invalid");
         let mut resp = Response::new(full(
-            R::error("missing header(x-sc)", "缺少服务编码").serialize(),
+            R::error(
+                "missing header(x-sc) or value is invalid",
+                "缺少服务编码或服务编码不正确",
+            )
+            .serialize(),
         ));
         resp.headers_mut().insert(
             "content-type",
             HeaderValue::from_str("application/json").unwrap(),
         );
         *resp.status_mut() = http::StatusCode::BAD_REQUEST;
+        resp
+    }
+
+    #[inline]
+    pub(crate) fn addr(sc: &str) -> Response<BoxBody<Bytes, Error>> {
+        let mut resp = Response::new(full(
+            R::data(format!("https://{}.hsse.sudti.cn", sc)).serialize(),
+        ));
+        resp.headers_mut().insert(
+            "content-type",
+            HeaderValue::from_str("application/json").unwrap(),
+        );
+        *resp.status_mut() = http::StatusCode::OK;
         resp
     }
 
@@ -89,6 +106,7 @@ pub(crate) mod resp {
         pub(crate) success: bool,
         pub(crate) error: Option<String>,
         pub(crate) error_description: Option<String>,
+        pub(crate) data: Option<String>,
     }
 
     impl R {
@@ -102,6 +120,7 @@ pub(crate) mod resp {
                 success,
                 error,
                 error_description,
+                data: None,
             }
         }
 
@@ -111,6 +130,17 @@ pub(crate) mod resp {
                 success: true,
                 error: None,
                 error_description: None,
+                data: None,
+            }
+        }
+
+        #[inline]
+        pub fn data(data: String) -> Self {
+            R {
+                success: true,
+                error: None,
+                error_description: None,
+                data: Some(data),
             }
         }
 
@@ -120,6 +150,7 @@ pub(crate) mod resp {
                 success: false,
                 error: Some(String::from(err)),
                 error_description: Some(String::from(err)),
+                data: None,
             }
         }
 
@@ -129,6 +160,7 @@ pub(crate) mod resp {
                 success: false,
                 error: Some(String::from(err)),
                 error_description: Some(String::from(desc)),
+                data: None,
             }
         }
 

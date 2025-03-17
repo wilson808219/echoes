@@ -1,6 +1,6 @@
 use crate::support::factories::header;
 use crate::support::io::IO;
-use crate::support::resp::{empty, error, forbidden};
+use crate::support::resp::{empty, error, forbidden, addr};
 use crate::support::tls::connector;
 use bytes::Bytes;
 use http_body_util::{BodyExt, combinators::BoxBody};
@@ -70,6 +70,14 @@ async fn proxy(
                 if sc.trim().is_empty() {
                     return Ok(forbidden());
                 }
+                if sc.len() != 6 {
+                    return Ok(forbidden());
+                }
+                let uri = request.uri();
+                if uri.path() == "/web/addr" {
+                    return Ok(addr(sc));
+                }
+
                 let host = format!("{}.hsse.sudti.cn", sc);
                 info!("try forwarding to: {}", host);
                 let connector = connector().await;
