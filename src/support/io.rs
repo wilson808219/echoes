@@ -16,10 +16,6 @@ impl<R> IO<R> {
     pub fn new(inner: R) -> Self {
         Self { inner }
     }
-
-    pub fn inner(self) -> R {
-        self.inner
-    }
 }
 
 impl<R> hyper::rt::Read for IO<R>
